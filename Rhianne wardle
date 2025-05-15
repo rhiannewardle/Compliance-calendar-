@@ -1,0 +1,77 @@
+import { useState } from "react";
+import { Calendar, momentLocalizer } from "react-big-calendar";
+import moment from "moment";
+import "react-big-calendar/lib/css/react-big-calendar.css";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import * as XLSX from "xlsx";
+
+const localizer = momentLocalizer(moment);
+
+export default function ComplianceCalendar() {
+  const [events, setEvents] = useState([]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      const bstr = evt.target.result;
+      const wb = XLSX.read(bstr, { type: "binary" });
+      const ws = wb.Sheets["inspections"];
+      const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+      const formattedEvents = data.map((row, i) => {
+        const startDate = moment(row.From, ["DD.MM.YYYY", "DD.MM.YY"]).toDate();
+        return {
+          id: i,
+          title: `${row["Inspection Type"]} - ${row["Property Address"]}`,
+          start: startDate,
+          end: startDate,
+          allDay: true,
+          resource: row,
+        };
+      });
+
+      setEvents(formattedEvents);
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  const exportToExcel = () => {
+    const exportData = events.map((event) => ({
+      Date: moment(event.start).format("YYYY-MM-DD"),
+      "Inspection Type": event.resource["Inspection Type"],
+      "Property Address": event.resource["Property Address"],
+      Landlord: event.resource.Landlord,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Calendar Export");
+    XLSX.writeFile(wb, "ComplianceCalendar.xlsx");
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <input type="file" accept=".xlsx" onChange={handleFileUpload} className="mb-4" />
+      <Button onClick={exportToExcel} className="mb-4">
+        <Download className="mr-2" /> Export to Excel
+      </Button>
+      <Card>
+        <CardContent>
+          <Calendar
+            localizer={localizer}
+            events={events}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: 600 }}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+} // fixed component closure
+
